@@ -43,3 +43,8 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Environment files
+.env
+input/.env
+.input/
