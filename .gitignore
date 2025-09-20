@@ -47,4 +47,4 @@ Thumbs.db
 # Environment files
 .env
 input/.env
-.input/
+input/
