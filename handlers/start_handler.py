@@ -4,7 +4,7 @@ import os
 # Добавляем родительскую директорию в путь поиска модулей
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
 from database import get_user, update_user_settings
 
@@ -42,4 +42,15 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         welcome_text,
         reply_markup=reply_markup,
         parse_mode="Markdown"
+    )
+
+    # Устанавливаем постоянную клавиатуру с кнопкой "📱 Меню"
+    menu_keyboard = [
+        [KeyboardButton("📱 Меню")]
+    ]
+    menu_markup = ReplyKeyboardMarkup(menu_keyboard, resize_keyboard=True)
+
+    await update.message.reply_text(
+        "\u200B",
+        reply_markup=menu_markup
     )
