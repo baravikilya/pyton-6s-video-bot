@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from services.openai_service import generate_script_with_tools, generate_image_prompt, generate_title, format_script_for_telegram
+from services.openai_service import generate_script_with_tools, generate_image_prompt, generate_title, format_script_for_telegram, verify_and_format_title
 from services.recraft_service import generate_image
 from handlers.video_handler import process_script, process_image, process_title
 
@@ -213,10 +213,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         title = generate_title(script, language)
 
+        # Проверяем и форматируем название
+        title_verified = verify_and_format_title(title, language)
+        if title_verified.startswith("❌ Ошибка"):
+            title_verified = title
+
         ## КРИТИЧНЫЙ ИСПРАВЛЕНИЕ: СОХРАНЯЕМ НОВОЕ НАЗВАНИЕ В КОНТЕКСТ!
         if "video_data" not in context.user_data:
             context.user_data["video_data"] = {}
-        context.user_data["video_data"]["title"] = title
+        context.user_data["video_data"]["title"] = title_verified
         context.user_data["video_data"]["topic"] = topic
         context.user_data["video_data"]["language"] = language
         context.user_data["video_data"]["mode"] = "Ручной"
@@ -240,7 +245,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Отправляем новое название отдельным сообщением
         await query.message.reply_text(
-            f"✍️ Пишу название для видео...\n\n{title}\n\n(Обновлено)",
+            f"✍️ Пишу название для видео...\n\n{title_verified}\n\n(Обновлено)",
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )

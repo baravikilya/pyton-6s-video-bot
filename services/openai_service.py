@@ -249,6 +249,66 @@ def generate_image_prompt(story):
     except Exception as e:
         return f"❌ Ошибка при генерации промта для изображения: {str(e)}"
 
+def verify_and_format_title(title, language):
+    """Проверка и форматирование сгенерированного заголовка"""
+    system_prompt = f"""
+Твоя задача — проверить и отформатировать текст заголовка на {language} языке.
+
+Критерии проверки:
+1. Заголовок должен быть написан безупречно на {language} языке. Исправь если не так.
+2. Заголовок не должен заканчиваться восклицательным знаком, точкой или другим знаком препинания в конце. Исправь если не так.
+3. Контекст заголовка должен подходить для носителей {language} языка, быть цепляющим и сенсационным.  Исправь если не так.
+4. Заголовок должен быть строго от 30 до 40 символов. Исправь если не так.
+5. Ответ должен содержать только готовый заголовок, никаких объяснений, ссылок или дополнительных слов.
+"""
+    user_prompt = title
+
+    try:
+        response = client.responses.create(
+            model="gpt-4.1-mini",
+            input=[
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": system_prompt.strip()
+                        }
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": user_prompt
+                        }
+                    ]
+                }
+            ],
+            text={
+                "format": {
+                    "type": "text"
+                }
+            },
+            temperature=0.3,
+            max_output_tokens=256,
+            top_p=1
+        )
+
+        result = response.output[0].content[0].text.strip()
+        log_openai_response("TITLE_VERIFICATION", f"{system_prompt.strip()}\n\nUser: {user_prompt}", result)
+        return result
+    except openai.PermissionDeniedError as e:
+        if "unsupported_country_region_territory" in str(e):
+            return "❌ Ошибка: Ваша страна не поддерживается OpenAI. Попробуйте использовать VPN."
+        else:
+            return "❌ Ошибка доступа к OpenAI. Попробуйте позже."
+    except Exception as e:
+        print(f"❌ Ошибка при проверке заголовка: {str(e)}")
+        log_openai_response("TITLE_VERIFICATION_ERROR", f"{system_prompt.strip()}\n\nUser: {user_prompt}", str(e))
+        return title  # Возвращаем оригинальный заголовок в случае ошибки
+
 def generate_title(text, language):
     """Генерация заголовка для видео (обновленная версия)"""
     system_prompt = f"""

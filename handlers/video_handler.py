@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from services.openai_service import generate_script_with_tools, generate_image_prompt, generate_title, clean_script_for_render, format_script_for_telegram
+from services.openai_service import generate_script_with_tools, generate_image_prompt, generate_title, clean_script_for_render, format_script_for_telegram, verify_and_format_title
 from services.recraft_service import generate_image
 from services.json2video_service import submit_video_job, get_video_url
 from database import get_user
@@ -60,8 +60,19 @@ async def create_video_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         # Получаем настройки пользователя
         db_user = get_user(user_id)
-        language = db_user[2] if db_user[2] else "русский"
-        mode = db_user[3] if db_user[3] else "Автоматический"
+
+        # Проверяем, что язык и режим установлены
+        language_from_db = db_user[2]
+        mode_from_db = db_user[3]
+        if (not language_from_db or language_from_db == "— не выбран —") or (not mode_from_db or mode_from_db == "— не выбран —"):
+            message = get_message_object(update)
+            if message:
+                await message.reply_text("⚠️ Выберите язык и режим перед созданием видео")
+            return
+
+        # Устанавливаем настройки (с дефолтами на всякий случай)
+        language = language_from_db if language_from_db else "русский"
+        mode = mode_from_db if mode_from_db else "Автоматический"
 
         # Генерируем сценарий с использованием инструментов поиска
         script = generate_script_with_tools(topic, language)
@@ -145,6 +156,12 @@ async def process_script(update: Update, context: ContextTypes.DEFAULT_TYPE, top
             await message.reply_text(title)
         return
 
+    # Проверяем и форматируем заголовок
+    title_verified = verify_and_format_title(title, language)
+    # Если есть ошибка в проверке, используем оригинальный
+    if title_verified.startswith("❌ Ошибка"):
+        title_verified = title
+
     # Проверяем режим работы
     if mode == "Ручной":
         # Используем уже созданный short_topic из context
@@ -168,7 +185,7 @@ async def process_script(update: Update, context: ContextTypes.DEFAULT_TYPE, top
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        message_text = "*Название видео*\n\n" + title + "\n\n"
+        message_text = "*Название видео*\n\n" + title_verified + "\n\n"
         if message:
             await message.reply_text(
                 message_text,
@@ -185,7 +202,7 @@ async def process_script(update: Update, context: ContextTypes.DEFAULT_TYPE, top
 
         # Сохраняем другие базовые данные
         context.user_data["video_data"]["topic"] = topic
-        context.user_data["video_data"]["title"] = title
+        context.user_data["video_data"]["title"] = title_verified
         context.user_data["video_data"]["language"] = language
         context.user_data["video_data"]["mode"] = mode
 
@@ -193,7 +210,7 @@ async def process_script(update: Update, context: ContextTypes.DEFAULT_TYPE, top
 
     # В автоматическом режиме продолжаем без подтверждения
     try:
-        await process_title(update, context, topic, script, title, language, mode)
+        await process_title(update, context, topic, script, title_verified, language, mode)
     except Exception as e:
         if message:
             await message.reply_text(f"❌ Ошибка при обработке названия: {str(e)}")
